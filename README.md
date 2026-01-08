@@ -1,20 +1,12 @@
-# RPI-HID — Raspberry Pi USB HID Automation Library
+# RPI-HID Setup
 
-RPI-HID is a Python library that allows a **Raspberry Pi Zero / Zero 2 W** to act as a **USB Human Interface Device (HID)**, emulating a keyboard to automate keystrokes on a connected system.
+One-command installer to configure a **Raspberry Pi Zero / Zero 2 W** as a **USB HID keyboard** and install the **rpi-hid** Python library inside a dedicated virtual environment.
 
-It provides a **high-level API** and an **advanced Rubber Ducky–style interpreter**, abstracting low-level HID report handling into clean, reusable Python functions.
-
----
-
-## Features
-
-- USB HID **keyboard emulation** using Linux USB gadget mode
-- High-level keyboard control API
-- Advanced **Rubber Ducky–style script execution**
-- Configurable typing delays and pauses
-- Auto-run payload support using `systemd`
-- Clean, modular, and extensible architecture
-- Published and installable from **PyPI**
+This repository handles:
+- USB gadget (HID) configuration
+- Required kernel and boot settings
+- Creation of `/dev/hidg0`
+- Installation of `rpi-hid` in an isolated Python environment
 
 ---
 
@@ -23,179 +15,113 @@ It provides a **high-level API** and an **advanced Rubber Ducky–style interpre
 - Raspberry Pi Zero
 - Raspberry Pi Zero 2 W
 
-> ⚠️ Other Raspberry Pi models (3/4/5) do not support USB gadget mode.
+> ⚠️ Raspberry Pi 3 / 4 / 5 do **not** support USB gadget mode.
 
 ---
 
 ## Requirements
 
 - Raspberry Pi OS (Lite recommended)
-- Python ≥ 3.7
-- USB OTG enabled (`dwc2`, `libcomposite`)
-- Root access (required for `/dev/hidg0`)
+- Internet connection
+- Root access
+
+---
+
+## Clone the Repository
+
+```bash
+git clone https://github.com/AbhirupRudra/RPI-HID.git
+cd RPI-HID
+```
 
 ---
 
 ## Installation
 
+Run the installer **once**:
+
+```bash
+sudo bash install.sh
+```
+
+When installation completes, reboot:
+
+```bash
+sudo reboot
+```
+
+---
+
+## Verify Installation
+
+After reboot, plug the Pi into the **USB DATA (OTG) port**.
+
+Verify that the HID device exists:
+
+```bash
+ls /dev/hidg0
+```
+
+If the file exists, the HID gadget is active.
+
+---
+
+## Python Environment
+
+The installer creates a dedicated virtual environment at:
+
+```
+/opt/rpi-hid/venv
+```
+
+The `rpi-hid` library is installed **only inside this environment**.
+
+---
+
+## Running HID Scripts
+
+All HID scripts **must be run using the venv Python** and **with sudo**:
+
+```bash
+sudo /opt/rpi-hid/venv/bin/python your_script.py
+```
+
+Example:
+
+```bash
+sudo /opt/rpi-hid/venv/bin/python test.py
+```
+
+---
+
+## Installing the Python Library Manually (Optional)
+
+If you only want the Python library:
+
 ```bash
 pip install rpi-hid
 ```
 
----
-
-## Quick Start
-
-```python
-from rpi_hid import Keyboard
-
-kbd = Keyboard()
-kbd.winRun("notepad")
-kbd.type("Hello from RPI-HID")
-kbd.enter()
-kbd.close()
-```
+(Requires HID gadget setup to already be configured.)
 
 ---
 
-## Keyboard API
+## Uninstall
 
-### `type(text: str)`
-
-Types the given string.
-
-```python
-kbd.type("Hello World")
-```
-
----
-
-### `press(*keys)`
-
-Presses a key or key combination.
-
-```python
-kbd.press("ENTER")
-kbd.press("CTRL", "c")
-kbd.press("GUI", "r")
-```
-
----
-
-### `pause(seconds: float)`
-
-Pauses execution.
-
-```python
-kbd.pause(1.5)
-```
-
----
-
-### `winRun(command: str)`
-
-Opens the Windows Run dialog and executes a command.
-
-```python
-kbd.winRun("cmd")
-```
-
----
-
-### `spamText(text: str, n: int = 10)`
-
-Types a string multiple times.
-
-```python
-kbd.spamText("TEST ", 5)
-```
-
----
-
-## Rubber Ducky Script Support
-
-RPI-HID includes a **DuckyScript interpreter** with near Rubber Ducky v1 compatibility.
-
-### Supported Commands
-
-* `STRING`
-* `DELAY`
-* `DEFAULT_DELAY`
-* `STRING_DELAY`
-* `ENTER`, `TAB`, `SPACE`, `ESC`
-* Modifier combos (`CTRL`, `ALT`, `SHIFT`, `GUI`)
-* `REPEAT`
-* `HOLD`, `RELEASE`
-* `REM`
-
-### Example Ducky Script
-
-```text
-REM Demo payload
-DEFAULT_DELAY 200
-GUI r
-STRING notepad
-ENTER
-STRING Hello from DuckyScript
-ENTER
-```
-
-### Execute Script
-
-```python
-from rpi_hid import DuckyInterpreter
-
-duck = DuckyInterpreter()
-duck.run_file("payload.duck")
-duck.close()
-```
-
----
-
-## AutoStart Support
-
-Payload scripts can be configured to **run automatically on boot** using `systemd`.
-
-### Enable AutoStart
+To remove the HID gadget and Python environment:
 
 ```bash
-sudo venv/bin/python test.py -a activate
-```
-
-### Disable AutoStart
-
-```bash
-sudo venv/bin/python test.py -a deactivate
-```
-
-### List Active AutoStart Scripts
-
-```bash
-sudo venv/bin/python test.py -a list
+sudo bash uninstall.sh
 ```
 
 ---
 
-## Permissions Note
+## Notes
 
-HID device access requires root privileges.
-When using a virtual environment, always run scripts using the venv Python binary:
-
-```bash
-sudo venv/bin/python script.py
-```
-
----
-
-## Ethical Use
-
-This project is intended for:
-
-* USB HID experimentation
-* Automation on owned or authorized systems
-* Educational and research purposes
-
-Users are responsible for ensuring lawful and ethical use.
+* Use the **USB DATA (OTG)** port, not the power-only port.
+* HID access requires root privileges.
+* The installer is safe to re-run.
+* No system Python packages are modified.
 
 ---
 
@@ -211,10 +137,14 @@ MIT License
 
 ---
 
-## Future Enhancements
+## Disclaimer
 
-* Mouse HID support
-* Full Rubber Ducky v2 compatibility
-* Conditional scripting logic
-* GPIO-based payload selection
-* udev-based privilege handling (no sudo)
+This project is intended for:
+
+* USB HID experimentation
+* Automation on owned or authorized systems
+* Educational and research use
+
+Users are responsible for complying with applicable laws and policies.
+
+```
