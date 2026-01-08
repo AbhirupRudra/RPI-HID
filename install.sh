@@ -20,8 +20,8 @@ fi
 echo "[+] Detected: $MODEL"
 
 # --- Enable dwc2 overlay ---
-BOOT_CONFIG="/boot/config.txt"
-CMDLINE="/boot/cmdline.txt"
+BOOT_CONFIG="/boot/firmware/config.txt"
+CMDLINE="/boot/firmware/cmdline.txt"
 
 grep -q "dtoverlay=dwc2" $BOOT_CONFIG || echo "dtoverlay=dwc2" >> $BOOT_CONFIG
 
