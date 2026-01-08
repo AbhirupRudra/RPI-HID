@@ -1,12 +1,12 @@
 from .device import HIDDevice
 from .keycodes import KEY, MOD, SHIFTED
 from .utils import pause
+import time
 
 class Keyboard:
     def __init__(self, delay=0.02):
         self.dev = HIDDevice(delay)
 
-    # 1️⃣ type("string")
     def type(self, text, pause_after=0.1):
         for ch in text:
             if ch.isupper():
@@ -18,7 +18,6 @@ class Keyboard:
                 self.dev.send(MOD[mod], KEY[base])
         pause(pause_after)
 
-    # 2️⃣ press("CTRL","ALT","DEL")
     def press(self, *keys):
         if not keys:
             raise ValueError("At least one key required")
@@ -46,21 +45,24 @@ class Keyboard:
 
         self.dev.send(modifier, main_key)
 
-
-    # 3️⃣ spamText(n, "string")
     def spamText(self, text, n=10):
         for _ in range(n):
             self.type(text)
 
-    # Extra useful functions
     def enter(self):
         self.dev.send(0, KEY["ENTER"])
 
-    def winRun(self, command):
+    def winRun(self, command, open_delay=0.4, type_delay=0.2):
         self.press("GUI", "r")
-        pause(0.3)
-        self.type(command)
+        self.pause(open_delay)
+
+        self.type(command, pause_after=type_delay)
+
         self.enter()
+        self.pause(type_delay)
+
+    def pause(self, seconds=0.5):
+        time.sleep(seconds)
 
     def close(self):
         self.dev.close()
