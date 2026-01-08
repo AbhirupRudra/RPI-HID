@@ -27,16 +27,25 @@ class Keyboard:
         main_key = None
 
         for k in keys:
-            k = k.upper()
-            if k in MOD:
-                modifier |= MOD[k]
-            elif k in KEY:
-                main_key = KEY[k]
+            k = k.strip()
+
+            # Modifier keys
+            if k.upper() in MOD:
+                modifier |= MOD[k.upper()]
+
+            # Single letter (r, a, z, etc.)
+            elif len(k) == 1 and k.lower() in KEY:
+                main_key = KEY[k.lower()]
+
+            # Named keys (ENTER, TAB, etc.)
+            elif k.upper() in KEY:
+                main_key = KEY[k.upper()]
 
         if main_key is None:
             raise ValueError("No valid key provided")
 
         self.dev.send(modifier, main_key)
+
 
     # 3️⃣ spamText(n, "string")
     def spamText(self, text, n=10):
