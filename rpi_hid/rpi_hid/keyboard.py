@@ -66,3 +66,24 @@ class Keyboard:
 
     def close(self):
         self.dev.close()
+    
+    def hold(self, *keys):
+        modifier = 0
+        main_key = None
+
+        for k in keys:
+            k = k.strip()
+            if k.upper() in MOD:
+                modifier |= MOD[k.upper()]
+            elif len(k) == 1 and k.lower() in KEY:
+                main_key = KEY[k.lower()]
+            elif k.upper() in KEY:
+                main_key = KEY[k.upper()]
+
+        if main_key is None:
+            raise ValueError("No valid key to hold")
+
+        self.dev.fd.write(bytes([modifier, 0, main_key, 0, 0, 0, 0, 0]))
+
+    def release(self):
+        self.dev.fd.write(bytes([0] * 8))

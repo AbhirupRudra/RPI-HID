@@ -1,15 +1,17 @@
 import time
 from .keyboard import Keyboard
-from .utils import pause
 
 class DuckyInterpreter:
     def __init__(self, delay=0.02):
         self.kbd = Keyboard(delay)
-        self.last_command = None
+        self.default_delay = 0
+        self.last_action = None
+
+    def sleep_ms(self, ms):
+        time.sleep(ms / 1000)
 
     def run_line(self, line):
         line = line.strip()
-
         if not line or line.startswith("REM"):
             return
 
@@ -17,50 +19,63 @@ class DuckyInterpreter:
         cmd = parts[0].upper()
         args = parts[1:]
 
-        # STRING
-        if cmd == "STRING":
+        # DEFAULT DELAY
+        if cmd in ("DEFAULT_DELAY", "DEFAULTDELAY"):
+            self.default_delay = int(args[0])
+
+        elif cmd == "DELAY":
+            self.sleep_ms(int(args[0]))
+
+        elif cmd == "PAUSE":
+            time.sleep(float(args[0]))
+
+        elif cmd == "STRING":
             text = line[len("STRING "):]
             self.kbd.type(text)
-            self.last_command = ("STRING", text)
+            self.last_action = ("STRING", text)
 
-        # DELAY (milliseconds)
-        elif cmd == "DELAY":
-            ms = int(args[0])
-            time.sleep(ms / 1000)
+        elif cmd == "STRING_DELAY":
+            delay = int(args[0])
+            text = line.split(" ", 2)[2]
+            for c in text:
+                self.kbd.type(c)
+                self.sleep_ms(delay)
+            self.last_action = ("STRING", text)
 
-        # SINGLE KEYS
-        elif cmd in ("ENTER", "TAB", "SPACE"):
-            self.kbd.press(cmd)
-            self.last_command = ("PRESS", cmd)
-
-        # KEY COMBINATIONS
-        elif cmd in ("CTRL", "ALT", "SHIFT", "GUI"):
-            combo = [cmd] + [a.upper() for a in args]
-            self.kbd.press(*combo)
-            self.last_command = ("PRESS", combo)
-
-        # REPEAT
         elif cmd == "REPEAT":
             count = int(args[0])
-            if self.last_command:
+            if self.last_action:
                 for _ in range(count):
-                    if self.last_command[0] == "STRING":
-                        self.kbd.type(self.last_command[1])
-                    elif self.last_command[0] == "PRESS":
-                        if isinstance(self.last_command[1], list):
-                            self.kbd.press(*self.last_command[1])
-                        else:
-                            self.kbd.press(self.last_command[1])
+                    if self.last_action[0] == "STRING":
+                        self.kbd.type(self.last_action[1])
+
+        elif cmd == "HOLD":
+            self.kbd.hold(*args)
+
+        elif cmd == "RELEASE":
+            self.kbd.release()
+
+        elif cmd in ("ENTER", "TAB", "SPACE", "ESC"):
+            self.kbd.press(cmd)
+            self.last_action = ("PRESS", cmd)
+
+        elif cmd in ("CTRL", "ALT", "SHIFT", "GUI"):
+            combo = [cmd] + args
+            self.kbd.press(*combo)
+            self.last_action = ("PRESS", combo)
 
         else:
-            raise ValueError(f"Unsupported DuckyScript command: {cmd}")
+            raise ValueError(f"Unsupported Ducky command: {cmd}")
 
-    def run_script(self, script_text):
-        for line in script_text.splitlines():
+        if self.default_delay:
+            self.sleep_ms(self.default_delay)
+
+    def run_script(self, text):
+        for line in text.splitlines():
             self.run_line(line)
 
-    def run_file(self, filepath):
-        with open(filepath, "r") as f:
+    def run_file(self, path):
+        with open(path) as f:
             for line in f:
                 self.run_line(line)
 
