@@ -69,17 +69,17 @@ fi
 echo "[+] rpi-hid installed inside venv"
 
 # --- Install composite HID + Storage gadget script ---
-install -m 755 scripts/hid-gadget+USB.sh /usr/local/bin/hid-gadget+USB.sh
+install -m 755 scripts/hid-gadget-USB.sh /usr/local/bin/hid-gadget-USB.sh
 
 # --- systemd service ---
-cat <<EOF >/etc/systemd/system/hid-gadget+USB.service
+cat <<EOF >/etc/systemd/system/hid-gadget-USB.service
 [Unit]
 Description=USB HID + Mass Storage Gadget
 After=multi-user.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/hid-gadget+USB.sh
+ExecStart=/usr/local/bin/hid-gadget-USB.sh
 RemainAfterExit=yes
 
 [Install]
@@ -87,7 +87,7 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable hid-gadget+USB.service
+systemctl enable hid-gadget-USB.service
 
 echo "[✓] Installation complete"
 echo "→ Reboot required"
