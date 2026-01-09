@@ -57,6 +57,11 @@ $VENV_DIR/bin/pip install rpi-hid
 
 echo "[+] rpi-hid installed inside venv"
 
+# --- Install flask inside venv ---
+$VENV_DIR/bin/pip install flask
+
+echo "[+] flask installed inside venv"
+
 # --- Install HID gadget script ---
 install -m 755 scripts/hid-gadget.sh /usr/local/bin/hid-gadget.sh
 
@@ -83,3 +88,12 @@ echo "→ Reboot required"
 echo ""
 echo "Run HID scripts using:"
 echo "sudo $VENV_DIR/bin/python your_script.py"
+echo ""
+echo "Run Web Server using:"
+echo "sudo systemctl start rpi-hid-web.service"
+echo ""
+echo "To restart Web Server:"
+echo "sudo systemctl restart rpi-hid-web.service"
+echo ""
+echo "to stop Web Server:"
+echo "sudo systemctl stop rpi-hid-web.service"
