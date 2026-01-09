@@ -40,6 +40,7 @@ INSTALL_DIR="/opt/rpi-hid"
 VENV_DIR="$INSTALL_DIR/venv"
 
 mkdir -p $INSTALL_DIR
+chown -R root:root $INSTALL_DIR
 
 # --- Create venv if not exists ---
 if [ ! -d "$VENV_DIR" ]; then
@@ -52,15 +53,10 @@ fi
 # --- Upgrade pip inside venv ---
 $VENV_DIR/bin/pip install --upgrade pip
 
-# --- Install rpi-hid inside venv ---
-$VENV_DIR/bin/pip install rpi-hid
+# --- Install required Python packages ---
+$VENV_DIR/bin/pip install rpi-hid flask
 
-echo "[+] rpi-hid installed inside venv"
-
-# --- Install flask inside venv ---
-$VENV_DIR/bin/pip install flask
-
-echo "[+] flask installed inside venv"
+echo "[+] rpi-hid + flask installed inside venv"
 
 # --- Install HID gadget script ---
 install -m 755 scripts/hid-gadget.sh /usr/local/bin/hid-gadget.sh
@@ -80,20 +76,41 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
 
+# --- systemd service for Web UI ---
+cat <<EOF >/etc/systemd/system/rpi-hid-web.service
+[Unit]
+Description=RPI HID Web UI
+After=network.target hid-gadget.service
+Requires=hid-gadget.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/rpi-hid
+ExecStart=/opt/rpi-hid/venv/bin/python -m rpi_hid.web.app
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# --- Enable services ---
 systemctl daemon-reload
 systemctl enable hid-gadget.service
+systemctl enable rpi-hid-web.service
 
+# --- Start web service now ---
+systemctl start rpi-hid-web.service
+
+echo ""
 echo "[✓] Installation complete"
-echo "→ Reboot required"
+echo "[✓] HID gadget enabled"
+echo "[✓] Web server enabled and started"
 echo ""
-echo "Run HID scripts using:"
-echo "sudo $VENV_DIR/bin/python your_script.py"
+echo "Web UI:"
+echo "  http://<PI-IP>:5000/python"
+echo "  http://<PI-IP>:5000/ducky"
 echo ""
-echo "Run Web Server using:"
-echo "sudo systemctl start rpi-hid-web.service"
-echo ""
-echo "To restart Web Server:"
-echo "sudo systemctl restart rpi-hid-web.service"
-echo ""
-echo "to stop Web Server:"
-echo "sudo systemctl stop rpi-hid-web.service"
+echo "Reboot is recommended:"
+echo "  sudo reboot"
