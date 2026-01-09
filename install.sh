@@ -1,71 +1,90 @@
 #!/bin/bash
 set -e
 
-echo "[*] RPI-HID Installer (venv-based) starting..."
+echo "[*] RPI-ZERO USB HID INSTALLER STARTING"
 
-# --- Root check ---
+# ---------------- ROOT CHECK ----------------
 if [ "$EUID" -ne 0 ]; then
   echo "[-] Run as root"
   exit 1
 fi
 
-# --- Check Pi model ---
+# ---------------- MODEL CHECK ----------------
 MODEL=$(tr -d '\0' < /proc/device-tree/model)
 if [[ "$MODEL" != *"Pi Zero"* ]]; then
   echo "[-] Unsupported model: $MODEL"
-  echo "    Only Raspberry Pi Zero / Zero 2 W supported"
   exit 1
 fi
+echo "[+] Model OK: $MODEL"
 
-echo "[+] Detected: $MODEL"
-
-# --- Enable dwc2 overlay ---
+# ---------------- ENABLE DWC2 ----------------
 BOOT_CONFIG="/boot/firmware/config.txt"
 CMDLINE="/boot/firmware/cmdline.txt"
 
-grep -q "dtoverlay=dwc2" $BOOT_CONFIG || echo "dtoverlay=dwc2" >> $BOOT_CONFIG
+grep -q "^dtoverlay=dwc2" "$BOOT_CONFIG" || echo "dtoverlay=dwc2" >> "$BOOT_CONFIG"
 
-if ! grep -q "modules-load=dwc2" $CMDLINE; then
-  sed -i 's/rootwait/rootwait modules-load=dwc2/' $CMDLINE
+if ! grep -q "modules-load=dwc2" "$CMDLINE"; then
+  sed -i 's/rootwait/rootwait modules-load=dwc2/' "$CMDLINE"
 fi
 
-echo "[+] USB gadget support configured"
+echo "[+] USB gadget kernel support enabled"
 
-# --- Install system dependencies ---
+# ---------------- SYSTEM PACKAGES ----------------
 apt update
-apt install -y python3 python3-venv python3-pip
+apt install -y \
+  python3 python3-venv python3-pip \
+  libcomposite bluez pulseaudio
 
-# --- Create install directory ---
-INSTALL_DIR="/opt/rpi-hid"
-VENV_DIR="$INSTALL_DIR/venv"
+# ---------------- HID GADGET SCRIPT ----------------
+cat <<'EOF' >/usr/local/bin/hid-gadget.sh
+#!/bin/bash
+set -e
 
-mkdir -p $INSTALL_DIR
-chown -R root:root $INSTALL_DIR
+modprobe libcomposite
 
-# --- Create venv if not exists ---
-if [ ! -d "$VENV_DIR" ]; then
-  python3 -m venv $VENV_DIR
-  echo "[+] Virtual environment created at $VENV_DIR"
-else
-  echo "[*] Virtual environment already exists"
+CONFIGFS=/sys/kernel/config
+GADGET=$CONFIGFS/usb_gadget/hidkbd
+
+if [ -d "$GADGET" ]; then
+  exit 0
 fi
 
-# --- Upgrade pip inside venv ---
-$VENV_DIR/bin/pip install --upgrade pip
+mkdir -p $GADGET
+cd $GADGET
 
-# --- Install required Python packages ---
-$VENV_DIR/bin/pip install rpi-hid flask
+echo 0x1d6b > idVendor
+echo 0x0104 > idProduct
 
-echo "[+] rpi-hid + flask installed inside venv"
+mkdir -p strings/0x409
+echo "0001" > strings/0x409/serialnumber
+echo "RaspberryPi" > strings/0x409/manufacturer
+echo "Pi USB Keyboard" > strings/0x409/product
 
-# --- Install HID gadget script ---
-install -m 755 scripts/hid-gadget.sh /usr/local/bin/hid-gadget.sh
+mkdir -p configs/c.1
+mkdir -p functions/hid.usb0
 
-# --- systemd service for HID gadget ---
+echo 1 > functions/hid.usb0/protocol
+echo 1 > functions/hid.usb0/subclass
+echo 8 > functions/hid.usb0/report_length
+
+echo -ne '\x05\x01\x09\x06\xa1\x01\x05\x07\x19\xe0\x29\xe7\x15\x00\x25\x01\x75\x01\x95\x08\x81\x02\x95\x01\x75\x08\x81\x03\x95\x06\x75\x08\x15\x00\x25\x65\x05\x07\x19\x00\x29\x65\x81\x00\xc0' \
+> functions/hid.usb0/report_desc
+
+ln -s functions/hid.usb0 configs/c.1/
+
+UDC=$(ls /sys/class/udc | head -n1)
+echo "$UDC" > UDC
+EOF
+
+chmod +x /usr/local/bin/hid-gadget.sh
+echo "[+] HID gadget script installed"
+
+# ---------------- SYSTEMD SERVICE (HID) ----------------
 cat <<EOF >/etc/systemd/system/hid-gadget.service
 [Unit]
 Description=USB HID Gadget
-After=multi-user.target
+After=systemd-modules-load.service
+Before=multi-user.target
 
 [Service]
 Type=oneshot
@@ -76,12 +95,26 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
 
-# --- systemd service for Web UI ---
+# ---------------- PYTHON ENV ----------------
+INSTALL_DIR="/opt/rpi-hid"
+VENV="$INSTALL_DIR/venv"
+
+mkdir -p "$INSTALL_DIR"
+
+if [ ! -d "$VENV" ]; then
+  python3 -m venv "$VENV"
+fi
+
+"$VENV/bin/pip" install --upgrade pip
+"$VENV/bin/pip" install flask rpi-hid
+
+echo "[+] Python environment ready"
+
+# ---------------- WEB SERVICE ----------------
 cat <<EOF >/etc/systemd/system/rpi-hid-web.service
 [Unit]
 Description=RPI HID Web UI
-After=network.target hid-gadget.service
-Requires=hid-gadget.service
+After=network.target
 
 [Service]
 Type=simple
@@ -89,28 +122,22 @@ User=root
 WorkingDirectory=/opt/rpi-hid
 ExecStart=/opt/rpi-hid/venv/bin/python -m rpi_hid.web.app
 Restart=always
-RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# --- Enable services ---
+# ---------------- ENABLE SERVICES ----------------
+systemctl daemon-reexec
 systemctl daemon-reload
 systemctl enable hid-gadget.service
 systemctl enable rpi-hid-web.service
-
-# --- Start web service now ---
 systemctl start rpi-hid-web.service
 
 echo ""
-echo "[✓] Installation complete"
-echo "[✓] HID gadget enabled"
-echo "[✓] Web server enabled and started"
+echo "[✓] INSTALL COMPLETE"
+echo "[✓] USB HID Keyboard ENABLED"
+echo "[✓] Web UI RUNNING"
 echo ""
-echo "Web UI:"
-echo "  http://<PI-IP>:5000/python"
-echo "  http://<PI-IP>:5000/ducky"
-echo ""
-echo "Reboot is recommended:"
+echo "REBOOT REQUIRED:"
 echo "  sudo reboot"
