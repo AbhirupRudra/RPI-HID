@@ -3,13 +3,11 @@ set -e
 
 echo "[*] RPI-ZERO USB HID INSTALLER STARTING"
 
-# ---------------- ROOT CHECK ----------------
 if [ "$EUID" -ne 0 ]; then
   echo "[-] Run as root"
   exit 1
 fi
 
-# ---------------- MODEL CHECK ----------------
 MODEL=$(tr -d '\0' < /proc/device-tree/model)
 if [[ "$MODEL" != *"Pi Zero"* ]]; then
   echo "[-] Unsupported model: $MODEL"
@@ -17,7 +15,6 @@ if [[ "$MODEL" != *"Pi Zero"* ]]; then
 fi
 echo "[+] Model OK: $MODEL"
 
-# ---------------- ENABLE DWC2 ----------------
 BOOT_CONFIG="/boot/firmware/config.txt"
 CMDLINE="/boot/firmware/cmdline.txt"
 
@@ -29,13 +26,11 @@ fi
 
 echo "[+] USB gadget kernel support enabled"
 
-# ---------------- SYSTEM PACKAGES ----------------
 apt update
 apt install -y \
   python3 python3-venv python3-pip \
   libcomposite bluez pulseaudio
 
-# ---------------- HID GADGET SCRIPT ----------------
 cat <<'EOF' >/usr/local/bin/hid-gadget.sh
 #!/bin/bash
 set -e
