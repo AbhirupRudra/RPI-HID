@@ -3,16 +3,15 @@ set -e
 
 echo "[*] RPI-ZERO HID FULL UNINSTALL STARTING"
 
-# ---------------- ROOT CHECK ----------------
+# ---------- ROOT CHECK ----------
 if [ "$EUID" -ne 0 ]; then
   echo "[-] Run as root"
   exit 1
 fi
 
-# ---------------- STOP & DISABLE SERVICES ----------------
+# ---------- STOP SERVICES ----------
 systemctl stop hid-gadget.service 2>/dev/null || true
 systemctl stop rpi-hid-web.service 2>/dev/null || true
-
 systemctl disable hid-gadget.service 2>/dev/null || true
 systemctl disable rpi-hid-web.service 2>/dev/null || true
 
@@ -24,62 +23,65 @@ systemctl daemon-reload
 
 echo "[+] systemd services removed"
 
-# ---------------- REMOVE USB GADGETS SAFELY ----------------
-CONFIGFS="/sys/kernel/config/usb_gadget"
+# ---------- USB GADGET CLEAN ----------
+CONFIGFS=/sys/kernel/config/usb_gadget
+GADGET=$CONFIGFS/rpi_hid
 
-if mount | grep -q configfs; then
-  for G in "$CONFIGFS"/*; do
-    [ -d "$G" ] || continue
+if [ -d "$GADGET" ]; then
+  echo "[*] Removing active USB gadget"
 
-    if [ -f "$G/UDC" ]; then
-      echo "" > "$G/UDC" || true
-    fi
+  # 1. Unbind UDC FIRST
+  if [ -f "$GADGET/UDC" ]; then
+    echo "" > "$GADGET/UDC"
+  fi
 
-    find "$G" -type l -delete || true
-    rm -rf "$G"
-  done
+  # 2. Remove function symlinks
+  find "$GADGET/configs" -type l -delete || true
+
+  # 3. Remove functions
+  rm -rf "$GADGET/functions" || true
+
+  # 4. Remove configs
+  rm -rf "$GADGET/configs" || true
+
+  # 5. Remove strings
+  rm -rf "$GADGET/strings" || true
+
+  # 6. Remove gadget
+  rmdir "$GADGET" || true
 fi
 
-echo "[+] USB gadget configfs cleaned"
+echo "[+] USB gadget removed cleanly"
 
-# ---------------- REMOVE HID DEVICE NODES ----------------
+# ---------- REMOVE DEVICE NODES ----------
 rm -f /dev/hidg* || true
-echo "[+] /dev/hidg* removed"
 
-# ---------------- REMOVE INSTALLED FILES ----------------
+# ---------- REMOVE FILES ----------
 rm -f /usr/local/bin/hid-gadget.sh
 rm -rf /opt/rpi-hid
 
-echo "[+] Installed HID files removed"
+echo "[+] Installed files removed"
 
-# ---------------- REMOVE PYTHON PACKAGES (OPTIONAL HARD WIPE) ----------------
+# ---------- PYTHON CLEAN ----------
 pip3 uninstall -y rpi-hid flask 2>/dev/null || true
 
-echo "[+] Python HID packages removed"
-
-# ---------------- REVERT BOOT CONFIG ----------------
+# ---------- REVERT BOOT CONFIG ----------
 BOOT_CONFIG="/boot/firmware/config.txt"
 CMDLINE="/boot/firmware/cmdline.txt"
 
-# Remove dtoverlay=dwc2
 sed -i '/^dtoverlay=dwc2$/d' "$BOOT_CONFIG"
-
-# Remove modules-load=dwc2 from cmdline
 sed -i 's/ modules-load=dwc2//g' "$CMDLINE"
 
-echo "[+] Boot configuration reverted"
+echo "[+] Boot config reverted"
 
-# ---------------- UNLOAD MODULES ----------------
+# ---------- UNLOAD MODULES ----------
 modprobe -r libcomposite 2>/dev/null || true
 modprobe -r dwc2 2>/dev/null || true
 
-echo "[+] Kernel modules unloaded"
-
-# ---------------- FINAL ----------------
 echo ""
-echo "[✓] HID FULLY REMOVED FROM SYSTEM"
-echo "[✓] NO USB GADGETS REMAIN"
-echo "[✓] BOOT CONFIG RESTORED"
+echo "[✓] HID COMPLETELY REMOVED"
+echo "[✓] KERNEL CLEAN"
+echo "[✓] CONFIGFS CLEAN"
 echo ""
 echo "REBOOT REQUIRED:"
 echo "  sudo reboot"
