@@ -9,7 +9,7 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# ---------- LOAD MODULE ----------
+# ---------- LOAD MODULES ----------
 modprobe libcomposite
 
 # ---------- ENSURE CONFIGFS ----------
@@ -23,10 +23,12 @@ cd /sys/kernel/config/usb_gadget || {
 }
 
 # ---------- CREATE GADGET ----------
-if [ ! -d hidkbd ]; then
-  mkdir hidkbd
+GADGET="hidkbd"
+
+if [ ! -d "$GADGET" ]; then
+  mkdir "$GADGET"
 fi
-cd hidkbd
+cd "$GADGET"
 
 # ---------- USB IDS ----------
 echo 0x1d6b > idVendor
@@ -56,16 +58,21 @@ if [ ! -L configs/c.1/hid.usb0 ]; then
   ln -s functions/hid.usb0 configs/c.1/
 fi
 
-# ---------- BIND UDC ----------
-UDC=$(ls /sys/class/udc | head -n1)
-if [ -z "$UDC" ]; then
-  echo "[-] No UDC found"
-  exit 1
+# ---------- UDC BINDING (CRITICAL FIX) ----------
+UDC_FILE="$PWD/UDC"
+
+# If already bound, do nothing
+if [ -s "$UDC_FILE" ]; then
+  echo "[*] UDC already bound: $(cat $UDC_FILE)"
+else
+  UDC_NAME=$(ls /sys/class/udc | head -n1)
+  if [ -z "$UDC_NAME" ]; then
+    echo "[-] No UDC found (wrong port or dwc2 not active)"
+    exit 1
+  fi
+  echo "$UDC_NAME" > "$UDC_FILE"
+  echo "[+] UDC bound to $UDC_NAME"
 fi
 
-if [ ! -s UDC ]; then
-  echo "$UDC" > UDC
-fi
-
-echo "[✓] USB Keyboard HID installed"
-echo "[✓] Device node: /dev/hidg0"
+echo "[✓] USB Keyboard HID installed successfully"
+echo "[✓] Device node should exist: /dev/hidg0"
