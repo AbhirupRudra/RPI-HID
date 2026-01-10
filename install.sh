@@ -26,10 +26,9 @@ fi
 
 echo "[+] USB gadget kernel support enabled"
 
-apt update
 apt install -y \
   python3 python3-venv python3-pip \
-  libcomposite bluez pulseaudio
+  bluez pulseaudio
 
 cat <<'EOF' >/usr/local/bin/hid-gadget.sh
 #!/bin/bash
