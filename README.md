@@ -1,150 +1,219 @@
-# RPI-HID Setup
+# RPI-HID — Raspberry Pi Zero USB Keyboard HID with Web Control
 
-One-command installer to configure a **Raspberry Pi Zero / Zero 2 W** as a **USB HID keyboard** and install the **rpi-hid** Python library inside a dedicated virtual environment.
+Turn a **Raspberry Pi Zero / Zero 2 W** into a **USB Keyboard HID device** that can inject keystrokes into a connected computer, with an optional **web interface** for live control.
 
-This repository handles:
-- USB gadget (HID) configuration
-- Required kernel and boot settings
-- Creation of `/dev/hidg0`
-- Installation of `rpi-hid` in an isolated Python environment
-
----
-
-## Supported Hardware
-
-- Raspberry Pi Zero
-- Raspberry Pi Zero 2 W
-
-> ⚠️ Raspberry Pi 3 / 4 / 5 do **not** support USB gadget mode.
+This project uses the **Linux USB Gadget framework** and is designed to be:
+- modular
+- reproducible
+- cleanly installable / uninstallable
 
 ---
 
-## Requirements
+## 🚀 What This Project Does
 
-- Raspberry Pi OS (Lite recommended)
-- Internet connection
-- Root access
+After installation, your Raspberry Pi Zero / Zero 2 W:
+
+- Appears to a host PC as a **standard USB keyboard**
+- Creates `/dev/hidg0` for HID report injection
+- Can be controlled via:
+  - Python scripts
+  - Web UI (Flask)
+- Survives reboot (when installed correctly)
 
 ---
 
-## Clone the Repository
+## 🧩 Outcome Device Behavior
 
-```bash
-git clone https://github.com/AbhirupRudra/RPI-HID.git
-cd RPI-HID
+| Property | Result |
+|-------|-------|
+| USB Class | HID (Keyboard) |
+| Host OS Detection | Generic USB Keyboard |
+| Driver Needed | ❌ None |
+| Keystroke Injection | ✅ |
+| Mouse Support | ❌ (keyboard only, by default) |
+| Bluetooth | ❌ |
+| Persistence | ✅ (after reboot) |
+
+---
+
+## 🖥 Supported Hardware
+
+- ✅ Raspberry Pi Zero
+- ✅ Raspberry Pi Zero 2 W
+- ❌ Pi 3 / Pi 4 / Pi 5 (not USB-OTG device mode)
+
+⚠️ **Use the USB (OTG) port**, not the PWR IN port.
+
+---
+
+## 🧠 How It Works (High Level)
+
+```
+
+Python / Web UI
+↓
+/dev/hidg0
+↓
+USB Gadget (libcomposite + configfs)
+↓
+Target PC sees: USB Keyboard
+
 ```
 
 ---
 
-## Installation
+## 📦 Repository Structure
 
-Run the installer **once**:
-
-```bash
-sudo bash install.sh
 ```
 
-When installation completes, reboot:
+.
+├── pre-install.sh        # Enables dwc2 (USB gadget support)
+├── install-HID.sh        # Creates USB HID keyboard gadget
+├── install-python.sh     # Python venv + web server
+├── uninstall.sh          # Full cleanup / rollback
+├── README.md
+
+````
+
+---
+
+## ⚙️ Installation (Correct Order)
+
+### 1️⃣ Pre-install (ONE TIME)
+Enables USB gadget support at boot.
 
 ```bash
+sudo chmod +x pre-install.sh
+sudo ./pre-install.sh
 sudo reboot
-```
+````
 
 ---
 
-## Verify Installation
+### 2️⃣ Install USB Keyboard HID
 
-After reboot, plug the Pi into the **USB DATA (OTG) port**.
+Creates the HID gadget and binds it to the USB controller.
 
-Verify that the HID device exists:
+```bash
+sudo chmod +x install-HID.sh
+sudo ./install-HID.sh
+```
+
+Verify:
 
 ```bash
 ls /dev/hidg0
 ```
 
-If the file exists, the HID gadget is active.
-
 ---
 
-## Python Environment
+### 3️⃣ Install Python + Web Interface
 
-The installer creates a dedicated virtual environment at:
-
-```
-/opt/rpi-hid/venv
-```
-
-The `rpi-hid` library is installed **only inside this environment**.
-
----
-
-## Running HID Scripts
-
-All HID scripts **must be run using the venv Python** and **with sudo**:
+Creates a virtual environment and starts the web server.
 
 ```bash
-sudo /opt/rpi-hid/venv/bin/python your_script.py
+sudo chmod +x install-python.sh
+sudo ./install-python.sh
 ```
 
-Example:
+---
+
+## 🌐 Web Interface
+
+After installation, access from another device:
+
+```
+http://<PI-IP>:5000/python
+http://<PI-IP>:5000/ducky
+```
+
+Features:
+
+* Live keystroke injection
+* Script-based input
+* Remote control over LAN
+
+---
+
+## ⌨️ Manual HID Test
+
+Send a single key (`A`) to the host PC:
 
 ```bash
-sudo /opt/rpi-hid/venv/bin/python test.py
+sudo bash -c 'echo -ne "\x00\x00\x04\x00\x00\x00\x00\x00" > /dev/hidg0'
+sudo bash -c 'echo -ne "\x00\x00\x00\x00\x00\x00\x00\x00" > /dev/hidg0'
 ```
 
 ---
 
-## Installing the Python Library Manually (Optional)
+## 🧹 Uninstall / Full Cleanup
 
-If you only want the Python library:
+Removes:
+
+* USB gadget
+* systemd services
+* Python environment
+* dwc2 boot config
 
 ```bash
-pip install rpi-hid
+sudo chmod +x uninstall.sh
+sudo ./uninstall.sh
+sudo reboot
 ```
 
-(Requires HID gadget setup to already be configured.)
-
----
-
-## Uninstall
-
-To remove the HID gadget and Python environment:
+After reboot:
 
 ```bash
-sudo bash uninstall.sh
+ls /dev/hidg*
+# should show nothing
 ```
 
 ---
 
-## Notes
+## ⚠️ Important Notes
 
-* Use the **USB DATA (OTG)** port, not the power-only port.
-* HID access requires root privileges.
-* The installer is safe to re-run.
-* No system Python packages are modified.
-
----
-
-## License
-
-MIT License
+* This project **does NOT** use Bluetooth HID
+* `libcomposite` is a **kernel module**, not an apt package
+* `configfs` must be mounted for gadget inspection
+* Re-running HID creation without uninstalling can cause kernel errors
 
 ---
 
-## Author
+## 🔒 Legal & Ethical Notice
 
-**Abhirup Rudra**
+This tool **injects keystrokes** into a connected system.
+
+Use **ONLY** on:
+
+* your own machines
+* test environments
+* devices you have explicit permission to control
+
+Unauthorized use may be illegal.
 
 ---
 
-## Disclaimer
+## 🛠 Future Extensions
 
-This project is intended for:
+Planned / possible additions:
 
-* USB HID experimentation
-* Automation on owned or authorized systems
-* Educational and research use
+* Keyboard + Mouse combo
+* DuckyScript engine
+* HTTPS + authentication
+* Payload auto-execution
+* Multi-profile HID modes
 
-Users are responsible for complying with applicable laws and policies.
+---
 
-```
+## ✅ Status
+
+* ✔ Stable on Raspberry Pi Zero 2 W
+* ✔ Clean install / uninstall
+* ✔ Reboot-safe
+* ✔ No external drivers required
+
+---
+
+## 📄 License
+
+MIT License — use responsibly.
